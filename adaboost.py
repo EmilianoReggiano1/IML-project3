@@ -58,24 +58,27 @@ class AdaBoost(BaseEstimator):
 
         # Initialize uniform distribution
         D = np.ones(samples_num)/samples_num
-
+        self.models_ = []
+        self.weights_ = []
         # Iterate through number of learners
         for _ in range(self.iterations_):
             # Create and fit weak learner
-            learner = self.wl_
+            learner = self.wl_()
 
             # sample train examples according to D
-            train_indices = np.random.choice(samples_num, samples_num, p=D)
-            learner.fit(X[train_indices], y[train_indices])
+            train_indices = np.random.choice(samples_num, size=samples_num, p=D, replace=True)
+            X_train_for_learner = X[train_indices]
+            y_train_for_learner = y[train_indices]
+            learner.fit(X_train_for_learner, y_train_for_learner)
 
             y_pred = learner.predict(X)
 
             # Compute weighted error
-            misclassified = y_pred != y
+            misclassified = (y_pred != y)
             weighted_error = np.sum(D * misclassified)
 
             # Compute learner weight
-            w = 0.5 * np.log(1-weighted_error / weighted_error)
+            w = 0.5 * np.log((1-weighted_error) / weighted_error)
 
             # Update sample weights and normalize
             D *= np.exp(-y * w * y_pred)
@@ -101,7 +104,7 @@ class AdaBoost(BaseEstimator):
         responses : ndarray of shape (n_samples, )
             Predicted responses of given samples
         """
-        self.partial_predict(X, self.iterations_)
+        return self.partial_predict(X, self.iterations_)
 
     def _loss(self, X: np.ndarray, y: np.ndarray) -> float:
         """
@@ -139,14 +142,14 @@ class AdaBoost(BaseEstimator):
         responses : ndarray of shape (n_samples, )
             Predicted responses of given samples
         """
-        prediction = np.zeros(X[0])
+        prediction = np.zeros(X.shape[0])
 
         for t in range(T):
             model = self.models_[t]
             weight = self.weights_[t]
             prediction += model.predict(X) * weight
-
-        return np.sign(prediction)
+        final_prediction = np.sign(prediction)
+        return final_prediction
 
     def partial_loss(self, X: np.ndarray, y: np.ndarray, T: int) -> float:
         """

@@ -49,7 +49,7 @@ class DecisionStump(BaseEstimator):
         # Iterate over all features
         for j in range(num_features):
             # Find the best threshold for the j'th feature
-            best_thr, best_err, best_sign = self.try_both_signs(X, y, j, best_err, best_thr, best_j, best_sign)
+            best_thr, best_j, best_sign = self.try_both_signs(X, y, j, best_err, best_thr, best_j, best_sign)
 
         # Update the best threshold, feature and sign
         self.threshold_, self.j_, self.sign_ = best_thr, best_j, best_sign
@@ -77,7 +77,11 @@ class DecisionStump(BaseEstimator):
         Feature values strictly below threshold are predicted as `-sign` whereas values which equal
         to or above the threshold are predicted as `sign`
         """
-        return np.where(X[:, self.j_] < self.threshold_, -self.sign_, self.sign_)
+        samples_num = X.shape[0]
+        y_pred = np.full(samples_num, self.sign_)
+        below_threshold = X[:, self.j_] < self.threshold_
+        y_pred[below_threshold] = -self.sign_
+        return y_pred
 
     def _find_threshold(self, values: np.ndarray, labels: np.ndarray, sign: int) -> Tuple[float, float]:
         """
