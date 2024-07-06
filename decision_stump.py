@@ -48,11 +48,14 @@ class DecisionStump(BaseEstimator):
 
         # Iterate over all features
         for j in range(num_features):
-            # Find the best threshold for the j'th feature
-            best_thr, best_j, best_sign = self.try_both_signs(X, y, j, best_err, best_thr, best_j, best_sign)
+            for sign in [-1, 1]:
+                thr, err = self._find_threshold(X[:, j], y, sign)
+                if err < best_err:
+                    best_thr, best_j, best_sign = thr, j, sign
+                    best_err = err
 
-        # Update the best threshold, feature and sign
         self.threshold_, self.j_, self.sign_ = best_thr, best_j, best_sign
+
 
 
     def _predict(self, X: np.ndarray) -> np.ndarray:
@@ -158,11 +161,4 @@ class DecisionStump(BaseEstimator):
         y_pred = self.predict(X)
         return misclassification_error(y, y_pred)
 
-    def try_both_signs(self, X, y, j, best_err, best_thr, best_j, best_sign):
-        """ Try both signs for the threshold """
-        for sign in [-1, 1]:
-            thr, err = self._find_threshold(X[:, j], y, sign)
-            if err < best_err:
-                best_thr, best_j, best_sign = thr, j, sign
-                best_err = err
-        return best_thr, best_j, best_sign
+
