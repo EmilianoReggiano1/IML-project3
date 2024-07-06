@@ -86,6 +86,7 @@ class DecisionStump(BaseEstimator):
         y_pred[below_threshold] = -self.sign_
         return y_pred
 
+
     def _find_threshold(self, values: np.ndarray, labels: np.ndarray, sign: int) -> Tuple[float, float]:
         """
         Given a feature vector and labels, find a threshold by which to perform a split
@@ -116,29 +117,31 @@ class DecisionStump(BaseEstimator):
         For every tested threshold, values strictly below threshold are predicted as `-sign` whereas values
         which equal to or above the threshold are predicted as `sign`
         """
-        # Sort the feature values and labels
+        # Sort the feature values and corresponding labels
         sorted_indices = np.argsort(values)
-        values, labels = values[sorted_indices], labels[sorted_indices]
+        sorted_values, sorted_labels = values[sorted_indices], labels[sorted_indices]
 
-        # Initialize the best threshold and error
-        thr, thr_err = None, np.inf
+        # Compute the initial loss for classifying all samples as `sign`
+        initial_loss = np.sum(np.abs(sorted_labels)[np.sign(sorted_labels) != sign])
 
-        # Iterate over all possible thresholds
-        for i in range(len(values) - 1):
-            # Calculate the threshold as the average of two consecutive values
-            threshold = (values[i] + values[i + 1]) / 2
+        # Compute cumulative losses for each potential threshold
+        cumulative_losses = initial_loss - np.cumsum(sorted_labels * sign)
+        cumulative_losses = np.insert(cumulative_losses, 0, initial_loss)
 
-            # Predict labels based on the threshold
-            y_pred = np.where(values < threshold, -sign, sign)
+        # Identify the index of the minimum cumulative loss
+        min_loss_index = np.argmin(cumulative_losses)
 
-            # Calculate the misclassification error
-            error = misclassification_error(labels, y_pred)
+        # Determine the optimal threshold
+        # Use `-np.inf` for the first index and `np.inf` for the last index
+        if min_loss_index == 0:
+            optimal_threshold = -np.inf
+        elif min_loss_index == len(sorted_values):
+            optimal_threshold = np.inf
+        else:
+            optimal_threshold = sorted_values[min_loss_index - 1]
 
-            # Update the best threshold and error
-            if error < thr_err:
-                thr, thr_err = threshold, error
-
-        return thr, thr_err
+        # Return the optimal threshold and its associated loss
+        return optimal_threshold, cumulative_losses[min_loss_index]
 
 
     def _loss(self, X: np.ndarray, y: np.ndarray) -> float:
@@ -160,5 +163,6 @@ class DecisionStump(BaseEstimator):
         """
         y_pred = self.predict(X)
         return misclassification_error(y, y_pred)
+
 
 

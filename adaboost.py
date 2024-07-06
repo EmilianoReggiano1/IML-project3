@@ -54,41 +54,18 @@ class AdaBoost(BaseEstimator):
         y : ndarray of shape (n_samples, )
             Responses of input data to fit to
         """
-        samples_num, features_num = X.shape
-
-        # Initialize uniform distribution
-        D = np.ones(samples_num)/samples_num
         self.models_ = []
-        self.weights_ = []
-        # Iterate through number of learners
-        for _ in range(self.iterations_):
-            # Create and fit weak learner
-            learner = self.wl_()
+        self.weights_ = np.zeros(self.iterations_)
+        self.D_ = np.ones(len(y), dtype=np.float64) / len(y)
 
-            # sample train examples according to D
-            train_indices = np.random.choice(samples_num, size=samples_num, p=D, replace=True)
-            X_train_for_learner = X[train_indices]
-            y_train_for_learner = y[train_indices]
-            learner.fit(X_train_for_learner, y_train_for_learner)
+        for i in range(self.iterations_):
+            learner, y_pred = self._fit_weak_learner(X, y, self.D_)
+            self.models_.append(learner)
 
-            y_pred = learner.predict(X)
+            weight = self._calculate_learner_weight(y_pred, y, self.D_)
+            self.weights_[i] = weight
 
-            # Compute weighted error
-            misclassified = (y_pred != y)
-            weighted_error = np.sum(D * misclassified)
-
-            # Compute learner weight
-            w = 0.5 * np.log((1-weighted_error) / weighted_error)
-
-            # Update sample weights and normalize
-            D *= np.exp(-y * w * y_pred)
-            D /= np.sum(D)
-
-            # Save model and weight
-            self.models_.append(learner), self.weights_.append(w)
-
-        # save distribution
-        self.D_ = D
+            self.D_ = self._update_distribution(self.D_, y_pred, y, weight)
 
     def _predict(self, X):
         """
@@ -173,3 +150,18 @@ class AdaBoost(BaseEstimator):
         """
         y_pred = self.partial_predict(X, T)
         return misclassification_error(y, y_pred)
+
+    def _fit_weak_learner(self, X, y, D):
+        learner = self.wl_().fit(X, y * D)
+        y_pred = learner.predict(X)
+        return learner, y_pred
+
+    def _calculate_learner_weight(self, y_pred, y, D):
+        epsilon = np.sum(D[y != y_pred])
+        weight = 0.5 * np.log((1. - epsilon) / epsilon)
+        return weight
+
+    def _update_distribution(self, D, y_pred, y, weight):
+        D *= np.exp(-y_pred * y * weight)
+        D /= np.sum(D)
+        return D
